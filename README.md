@@ -8,7 +8,7 @@ This mod also replaces the in-game Save/Load window with a custom one that is si
 
 **License:** GNU General Public License v3
 
-**Required Mod Loader:** (StarMap)[https://github.com/StarMapLoader/StarMap/releases/tag/0.4.5]
+**Required Mod Loader:** [StarMap](https://github.com/StarMapLoader/StarMap/releases/tag/0.4.5)
 
 ## Installation
 
