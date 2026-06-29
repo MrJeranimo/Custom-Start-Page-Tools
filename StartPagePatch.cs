@@ -1,11 +1,7 @@
-﻿using Brutal.GlfwApi;
-using Brutal.ImGuiApi;
-using Brutal.Logging;
+﻿using Brutal.ImGuiApi;
 using Brutal.Numerics;
 using HarmonyLib;
 using KSA;
-using System.Runtime.Intrinsics.Arm;
-using static KSA.KSAColor;
 
 namespace Custom_Start_Page_Tools
 {
@@ -36,6 +32,12 @@ namespace Custom_Start_Page_Tools
         private static bool _saveLoadError = false;
         private static bool _noSaveData = false;
         private static List<string> _modErrors = new List<string>();
+
+        public static GameSave? SelectedSave => _selectedSave;
+        public static SaveData? SelectedSaveData => _selectedSaveData;
+        public static bool StartGame => _startGame;
+        public static bool LoadSave => _loadSave;
+        public static bool NewGame => _newGame;
 
         [HarmonyPatch(typeof(ConfigOnStartPopup), "OnDrawUi")]
         [HarmonyPrefix]
