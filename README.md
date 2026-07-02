@@ -24,4 +24,4 @@ to `\Documents\My Games\Kitten Space Agency\manifest.toml`.
 
 ## Adding to the SaveInfoWindow
 
-There is a function called `DrawModHook()` in the `StartStagePatch` class in this mod that is intended to allow for other mods to add their own Save Info into the prebuilt window. Just use a Harmony Patch to get the `SelectedSave` from `StartStagePatch` and to patch into the method.
+There is a function called `DrawModHook()` in the `SavesMenuiUi` class in this mod that is intended to allow for other mods to add their own Save Info into the prebuilt window.
