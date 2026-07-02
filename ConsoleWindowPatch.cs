@@ -11,9 +11,9 @@ namespace Custom_Start_Page_Tools
         [HarmonyPostfix]
         public static void LoadSaveOnLaunch()
         {
-            if (StartPagePatch._loadSave)
+            if (StartPagePatch.SavesUi.LoadSave)
             {
-                GameSaves.LoadSaveGame(StartPagePatch._selectedSave!.Id);
+                GameSaves.LoadSaveGame(StartPagePatch.SavesUi.SelectedSave!.Id);
             }
         }
     }

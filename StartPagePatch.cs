@@ -10,12 +10,11 @@ namespace Custom_Start_Page_Tools
     {
         public static float _windowWidth = float.Clamp(float2.Unpack(Program.GetWindow().Size).X * (0.65f / GameSettings.GetInterfaceScale()), 400f, 800f);
         public static readonly float2 _buttonSize = new float2(150f, 30f);
-        private static string _showWindow = "Menu";
+        public static string ShowWindow = "Menu";
         private static bool _showActiveMods = true;
         private static bool _newGame = true;
         private static HashSet<string> _expandedMods = new HashSet<string>();
         private static bool _startGame = false;
-        public static bool _loadSave = false;
         private static ConfigOnStartPopup? _instance;
         private static Traverse? _traverse;
         private static SystemInfo? _selectedSystem;
@@ -25,29 +24,20 @@ namespace Custom_Start_Page_Tools
         private static List<ConfigOnStartPopup.VehicleObject> _vehicles = new List<ConfigOnStartPopup.VehicleObject>();
         private static LocationObject _selectedLocation;
         private static List<LocationObject> _locations = new List<LocationObject>();
-        private static LookupCollection<GameSave> _gameSaves = new LookupCollection<GameSave>("temp");
-        public static GameSave? _selectedSave;
-        public static SaveData? _selectedSaveData;
-        private static Dictionary<string, SaveData> _gameSavesData = new Dictionary<string, SaveData>();
-        private static bool _saveLoadError = false;
-        private static bool _noSaveData = false;
-        private static List<string> _modErrors = new List<string>();
+        public static SavesMenuUi SavesUi = new SavesMenuUi(ref ShowWindow);
 
-        public static GameSave? SelectedSave => _selectedSave;
-        public static SaveData? SelectedSaveData => _selectedSaveData;
         public static bool StartGame => _startGame;
-        public static bool LoadSave => _loadSave;
         public static bool NewGame => _newGame;
 
         [HarmonyPatch(typeof(ConfigOnStartPopup), "OnDrawUi")]
         [HarmonyPrefix]
         public static bool ConfigStartPopupPatch(ConfigOnStartPopup __instance)
         {
-            if (_loadSave)
+            if (SavesUi.LoadSave)
             {
-                if (_selectedSaveData != null)
+                if (SavesUi.SelectedSaveData != null)
                 {
-                    _selectedSystem = SelectSystem.Systems.Find(system => system.Id == _selectedSaveData.SystemInfoName);
+                    _selectedSystem = SelectSystem.Systems.Find(system => system.Id == SavesUi.SelectedSaveData.SystemInfoName);
                     if (_selectedSystem != null)
                     {
                         SystemLibrary.Default = _selectedSystem;
@@ -56,15 +46,17 @@ namespace Custom_Start_Page_Tools
                         _traverse!.Method("SetStartingVehicleLocation").GetValue();
                         GameSettings.Current.Save();
                     }
-                    GameSettings.Current.System.StartGameType = _selectedSaveData.GameType;
+                    GameSettings.Current.System.StartGameType = SavesUi.SelectedSaveData.GameType;
                 }
                 __instance.Active = false;
+                SavesMenuUi.GameStarted = true;
                 return false;
             }
 
             if (_startGame)
             {
                 __instance.Active = false;
+                SavesMenuUi.GameStarted = true;
                 return false;
             }
 
@@ -79,14 +71,14 @@ namespace Custom_Start_Page_Tools
                 _vehicles = _traverse.Field("_vehicles").GetValue<List<ConfigOnStartPopup.VehicleObject>>();
                 _selectedLocation = _traverse.Field("_startingLocation").GetValue<LocationObject>();
                 _locations = _traverse.Field("_locations").GetValue<List<LocationObject>>();
-                _gameSaves = Traverse.CreateWithType("KSA.GameSaves").Property("Saves").GetValue<LookupCollection<GameSave>>();
-                foreach (GameSave save in _gameSaves.AsSpan())
+                SavesMenuUi.GameSaves = Traverse.CreateWithType("KSA.GameSaves").Property("Saves").GetValue<LookupCollection<GameSave>>();
+                foreach (GameSave save in SavesMenuUi.GameSaves.AsSpan())
                 {
-                    _gameSavesData.Add(save.Id, SaveData.Load(((UncompressedSave)save).Directory.FullName)!);
+                    SavesMenuUi.GameSavesData.Add(save.Id, SaveData.Load(((UncompressedSave)save).Directory.FullName)!);
                 }
             }
 
-            switch (_showWindow)
+            switch (ShowWindow)
             {
                 case "Menu":
                     break;
@@ -94,7 +86,7 @@ namespace Custom_Start_Page_Tools
                     DrawSingleplayerMenu();
                     return false;
                 case "Delete Save":
-                    DrawDeleteSaveWarning();
+                    SavesUi.DrawDeleteSaveWarning();
                     return false;
                 case "Multiplayer":
                     // TODO: Implement multiplayer menu
@@ -113,21 +105,21 @@ namespace Custom_Start_Page_Tools
             ImGuiHelper.SetCurrentWindowToCenter();
             if (ImGui.Button("Singleplayer", _buttonSize))
             {
-                _showWindow = "Singleplayer";
+                ShowWindow = "Singleplayer";
             }
             ImGui.BeginDisabled();
             if (ImGui.Button("Multiplayer", _buttonSize))
             {
-                _showWindow = "Multiplayer";
+                ShowWindow = "Multiplayer";
             }
             ImGui.EndDisabled();
             if (ImGui.Button("Settings", _buttonSize))
             {
-                _showWindow = "Settings";
+                ShowWindow = "Settings";
             }
             if (ImGui.Button("Mods", _buttonSize))
             {
-                _showWindow = "Mods";
+                ShowWindow = "Mods";
             }
             if (ImGui.Button("Quit", _buttonSize))
             {
@@ -139,9 +131,9 @@ namespace Custom_Start_Page_Tools
 
         private static void DrawSingleplayerMenu()
         {
-            if (_saveLoadError)
+            if (SavesUi.SaveLoadError)
             {
-                DrawSaveErrorsPopup(_modErrors);
+                SavesUi.DrawSaveErrorsPopup(SavesUi.ModErrors);
                 return;
             }
 
@@ -166,8 +158,6 @@ namespace Custom_Start_Page_Tools
             if (ImGui.Button("New Game", new float2(buttonWidth, buttonHeight)))
             {
                 _newGame = true;
-                _selectedSave = null;
-                _selectedSaveData = null;
             }
 
             ImGui.PopStyleColor();
@@ -247,7 +237,7 @@ namespace Custom_Start_Page_Tools
                 ImGui.SetCursorPosX((ImGui.GetWindowWidth() - (_buttonSize.X * 2)) / 2f);
                 if (ImGui.Button("Back", _buttonSize))
                 {
-                    _showWindow = "Menu";
+                    ShowWindow = "Menu";
                 }
                 ImGui.SameLine();
                 if (ImGui.Button("Start Game", _buttonSize))
@@ -257,237 +247,7 @@ namespace Custom_Start_Page_Tools
             }
             else
             {
-                if (_selectedSave != null)
-                {
-                    ImGui.Columns(2, "Save Cloumns", false);
-                    float windowWidth = ImGui.GetWindowWidth();
-                    ImGui.SetColumnWidth(0, windowWidth * 0.4f);
-                }
-                BeginBox("Select Save", true, false, regionHeight: 500f);
-                foreach (GameSave save in _gameSaves.AsSpan())
-                {
-                    DrawSaveBox(save, _gameSavesData[save.Id]);
-                }
-                EndBox();
-                if (_selectedSave != null)
-                {
-                    ImGui.NextColumn();
-                    DrawSaveInfoBox();
-                    ImGui.Columns();
-                }
-                ImGui.Spacing();
-                ImGui.Separator();
-                ImGui.Spacing();
-                ImGui.SetCursorPosX((ImGui.GetWindowWidth() - (_buttonSize.X * 3)) / 2f);
-                if (ImGui.Button("Back", _buttonSize))
-                {
-                    _showWindow = "Menu";
-                    _selectedSave = null;
-                    _selectedSaveData = null;
-                }
-                ImGui.SameLine();
-                if (_selectedSave == null)
-                    ImGui.BeginDisabled();
-                if (ImGui.Button("Delete Save", _buttonSize))
-                {
-                    _showWindow = "Delete Save";
-                }
-                ImGui.SameLine();
-                if (ImGui.Button("Load Save ##Button", _buttonSize))
-                {
-                    if (_selectedSaveData != null)
-                    {
-                        _noSaveData = false;
-                        _modErrors = _selectedSaveData.CheckMods();
-                        if (_modErrors.Count > 0 || _selectedSave!.Version != VersionInfo.Current.VersionString)
-                        {
-                            _saveLoadError = true;
-                        }
-                        else
-                        {
-                            _loadSave = true;
-                        }
-                    }
-                    else
-                    {
-                        _noSaveData = true;
-                        _saveLoadError = true;
-                    }
-                }
-                if (_selectedSave == null)
-                    ImGui.EndDisabled();
-            }
-            ImGui.EndPopup();
-        }
-
-        public static void DrawSaveErrorsPopup(List<string> modErrors)
-        {
-            ImGui.SetNextWindowSize(new float2(_windowWidth, -1f), ImGuiCond.Always);
-            ImGui.OpenPopup("Custom Start Page Tools - Save Load Error");
-            ImGui.BeginPopup("Custom Start Page Tools - Save Load Error", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.Popup | ImGuiWindowFlags.NoResize);
-            ImGuiHelper.SetCurrentWindowToCenter();
-            ImGui.PushFont(default(ImFontPtr), 40);
-            ImGui.SetCursorPosX((ImGui.GetWindowWidth() - ImGui.CalcTextSize("Warning").X) / 2f);
-            ImGui.Text("Warning");
-            ImGui.PopFont();
-            ImGui.TextWrapped("The game version and/or active mods may not match the selected save's game version and/or active mods.");
-            ImGui.Spacing();
-            ImGui.Separator();
-            ImGui.Spacing();
-            if (_selectedSave!.Version != VersionInfo.Current.VersionString)
-            {
-                ImGui.Text("KSA Game Versions do not match:");
-                ImGui.TextDisabled($"Current Version: {VersionInfo.Current.VersionString}\nSave's Version: {_selectedSave.Version}");
-                ImGui.Spacing();
-                ImGui.Separator();
-                ImGui.Spacing();
-            }
-            if (_noSaveData)
-            {
-                ImGui.Text("There is no meta data about the mods for this save.");
-            }
-            foreach (string error in modErrors)
-            {
-                ImGui.TextWrapped(error);
-            }
-            if (modErrors.Count > 0)
-            {
-                ImGui.Spacing();
-                ImGui.Separator();
-                ImGui.Spacing();
-            }
-            ImGui.TextWrapped("You can attempt to load the save with the error/warnings, but it is not recommended.");
-            ImGui.Spacing();
-            ImGui.Separator();
-            ImGui.Spacing();
-            ImGui.SetCursorPosX((ImGui.GetWindowWidth() - (_buttonSize.X * 2)) / 2f);
-            if (ImGui.Button("Cancel", _buttonSize))
-            {
-                _saveLoadError = false;
-            }
-            ImGui.SameLine();
-            if (ImGui.Button("Load Anyway", _buttonSize))
-            {
-                _loadSave = true;
-            }
-            ImGui.EndPopup();
-        }
-
-        public static void DrawSaveBox(GameSave save, SaveData? saveData)
-        {
-            BeginBox($"##{save.Id}'s Box", true, regionHeight: -1f);
-            ImGui.TextWrapped(save.Id);
-            if (saveData != null)
-                ImGui.TextColored(new ImColor8(144, 238, 144, 255).AsFloat4(), saveData.GameType.ToString()!);
-            ImGui.TextDisabled(save.Version.VersionString);
-            if (saveData != null && saveData.Mods.Count > 1)
-            {
-                ImGui.TextDisabled("Modded");
-            }
-            if (save == _selectedSave)
-            {
-                ImGui.GetWindowDrawList().AddRectFilled(ImGui.GetWindowPos(), ImGui.GetWindowPos() + ImGui.GetWindowSize(), new ImColor8(211, 211, 211, 20));
-            }
-            EndBox();
-
-            if (ImGui.IsItemClicked())
-            {
-                _selectedSave = save;
-                _selectedSaveData = saveData;
-            }
-        }
-
-        public static void DrawSaveInfoBox()
-        {
-            BeginBox("Save Info", true, false, regionHeight: 500f);
-            ImGui.PushFont(default(ImFontPtr), 32);
-            ImGui.TextWrapped(_selectedSave!.Id);
-            ImGui.PopFont();
-            if (_selectedSaveData != null)
-                ImGui.TextColored(new ImColor8(144, 238, 144, 255).AsFloat4(), _selectedSaveData.GameType.ToString()!);
-            ImGui.BeginDisabled();
-            ImGui.TextWrapped($"KSA Version: {_selectedSave.Version}");
-            ImGui.EndDisabled();
-            if (_selectedSaveData != null && _selectedSaveData.Mods.Count > 1)
-            {
-                ImGui.TextDisabled("Modded");
-            }
-            if (_selectedSaveData != null)
-            {
-                ImGui.Spacing();
-                ImGui.Separator();
-                ImGui.Spacing();
-                SimTime simTime = new SimTime(_selectedSaveData.SimTime);
-                string timeString = $"{simTime.ValueIn(TimeUnit.Years):F0} Years, {simTime.ValueIn(TimeUnit.Days) % 365:F0} Days, {simTime.ValueIn(TimeUnit.Hours) % 24:F0} Hours";
-                ImGui.TextWrapped(timeString);
-                ImGui.TextWrapped("Number of Vehicles:");
-                ImGui.SameLine();
-                ImGui.BeginDisabled();
-                ImGui.TextWrapped($"{_selectedSaveData.VehicleCount}");
-                ImGui.EndDisabled();
-                if (_selectedSaveData.LastControlledVehicle != null)
-                {
-                    ImGui.TextWrapped("Last Controlled Vehicle:");
-                    ImGui.SameLine();
-                    ImGui.BeginDisabled();
-                    ImGui.TextWrapped($"{_selectedSaveData.LastControlledVehicle}");
-                    ImGui.EndDisabled();
-                    ImGui.TextWrapped("Parent Body:");
-                    ImGui.SameLine();
-                    ImGui.BeginDisabled();
-                    ImGui.TextWrapped($"{_selectedSaveData.LastControlledVehicleParent!}");
-                    ImGui.EndDisabled();
-                }
-                DrawModHook();
-                ImGui.Spacing();
-                ImGui.Separator();
-                ImGui.Spacing();
-                ImGui.PushFont(default(ImFontPtr), 24);
-                ImGui.Text("Mods:");
-                ImGui.PopFont();
-                foreach (SaveModData mod in _selectedSaveData.Mods)
-                {
-                    string modString = $"{mod.Name} - {(mod.Version ?? "")}";
-                    ImGui.TextWrapped(modString);
-                }
-            }
-            EndBox();
-        }
-
-        public static void DrawModHook() { }
-
-        public static void DrawDeleteSaveWarning()
-        {
-            ImGui.SetNextWindowSize(new float2(_windowWidth, -1f), ImGuiCond.Always);
-            ImGui.OpenPopup("Custom Start Page Tools - Delete Save Warning");
-            ImGui.BeginPopup("Custom Start Page Tools - Delete Save Warning", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.Popup | ImGuiWindowFlags.NoResize);
-            ImGuiHelper.SetCurrentWindowToCenter();
-            ImGui.PushFont(default(ImFontPtr), 40);
-            ImGui.SetCursorPosX((ImGui.GetWindowWidth() - ImGui.CalcTextSize("Warning").X) / 2f);
-            ImGui.Text("Warning");
-            ImGui.PopFont();
-            ImGui.Spacing();
-            ImGui.Separator();
-            ImGui.Spacing();
-            ImGui.TextWrapped("Deleting this save cannot be undone!");
-            ImGui.Spacing();
-            ImGui.Spacing();
-            DrawSaveBox(_selectedSave!, _selectedSaveData);
-            ImGui.Spacing();
-            ImGui.Separator();
-            ImGui.Spacing();
-            ImGui.SetCursorPosX((ImGui.GetWindowWidth() - (_buttonSize.X * 2)) / 2f);
-            if (ImGui.Button("Cancel", _buttonSize))
-            {
-                _showWindow = "Singleplayer";
-            }
-            ImGui.SameLine();
-            if (ImGui.Button("Delete", _buttonSize))
-            {
-                _selectedSave!.Delete();
-                _selectedSave = null;
-                _selectedSaveData = null;
-                _showWindow = "Singleplayer";
+                SavesUi.Draw();
             }
             ImGui.EndPopup();
         }
@@ -506,7 +266,7 @@ namespace Custom_Start_Page_Tools
             ImGui.SetCursorPosX((ImGui.GetWindowWidth() - (_buttonSize.X * 3)) / 2f);
             if (ImGui.Button("Back", _buttonSize))
             {
-                _showWindow = "Menu";
+                ShowWindow = "Menu";
             }
             ImGui.SameLine();
             if (ImGui.Button("Save", _buttonSize))
@@ -585,7 +345,7 @@ namespace Custom_Start_Page_Tools
             ImGui.SetCursorPosX((ImGui.GetWindowWidth() - (_buttonSize.X * 3)) / 2f);
             if (ImGui.Button("Back", _buttonSize))
             {
-                _showWindow = "Menu";
+                ShowWindow = "Menu";
             }
             ImGui.SameLine();
             if (ImGui.Button("Save", _buttonSize))
